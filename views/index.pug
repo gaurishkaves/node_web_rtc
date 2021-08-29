@@ -1,34 +1,22 @@
-extends layout
+doctype html
+head
+  title Realtime communication with WebRTC
+  link(rel='stylesheet', href='https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css', integrity='sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm', crossorigin='anonymous')
+
+  link(rel='stylesheet', href='stylesheets/style.css')
+body
+    h1 Realtime communication with WebRTC
+    video#localVideo(autoplay='', playsinline='')
+    video#remoteVideo(autoplay='', playsinline='')
+    div.container
+        .btn-group(role='group', aria-label='Basic example')
+          button#start.btn.btn-secondary(type='button') Start
+          button#call.btn.btn-secondary(type='button' ) Call
+          button#hangup.btn.btn-secondary(type='button' ) Hang Up
 
 
-block content
-  .header
-    .logo
-      .header__back
-        i.fas.fa-angle-left
-      h3
-        | Video Chat
-  .main
-    .main__left
-      .videos__group
-        #video-grid
-      .options
-        .options__left
-          #stopVideo.options__button
-            i.fa.fa-video-camera
-          #muteButton.options__button
-            i.fa.fa-microphone
-          #showChat.options__button
-            i.fa.fa-comment
-        .options__right
-          #inviteButton.options__button
-            i.fas.fa-user-plus
-    .main__right
-      .main__chat_window
-        .messages
-      .main__message_container
-        input#chat_message(type='text' autocomplete='off' placeholder='Type message here...')
-        #send.options__button
-          i.fa.fa-plus(aria-hidden='true')
 
 
+
+script(src='https://webrtc.github.io/adapter/adapter-latest.js')
+script(src='javascripts/script.js')

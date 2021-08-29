@@ -1,140 +1,128 @@
-const socket = io("/");
-const videoGrid = document.getElementById("video-grid");
-const myVideo = document.createElement("video");
-const showChat = document.querySelector("#showChat");
-const backBtn = document.querySelector(".header__back");
-myVideo.muted = true;
+'use strict';
 
-backBtn.addEventListener("click", () => {
-  document.querySelector(".main__left").style.display = "flex";
-  document.querySelector(".main__left").style.flex = "1";
-  document.querySelector(".main__right").style.display = "none";
-  document.querySelector(".header__back").style.display = "none";
-});
-
-showChat.addEventListener("click", () => {
-  document.querySelector(".main__right").style.display = "flex";
-  document.querySelector(".main__right").style.flex = "1";
-  document.querySelector(".main__left").style.display = "none";
-  document.querySelector(".header__back").style.display = "block";
-});
-
-const user = prompt("Enter your name");
-
-var peer = new Peer(undefined, {
-  path: "/peerjs",
-  host: "/",
-  port: "443",
-});
-
-let myVideoStream;
-navigator.mediaDevices
-  .getUserMedia({
-    audio: true,
-    video: true,
-  })
-  .then((stream) => {
-    myVideoStream = stream;
-    addVideoStream(myVideo, stream);
-
-    peer.on("call", (call) => {
-      call.answer(stream);
-      const video = document.createElement("video");
-      call.on("stream", (userVideoStream) => {
-        addVideoStream(video, userVideoStream);
-      });
-    });
-
-    socket.on("user-connected", (userId) => {
-      connectToNewUser(userId, stream);
-    });
-  });
-
-const connectToNewUser = (userId, stream) => {
-  const call = peer.call(userId, stream);
-  const video = document.createElement("video");
-  call.on("stream", (userVideoStream) => {
-    addVideoStream(video, userVideoStream);
-  });
+// On this codelab, you will be streaming only video (video: true).
+const mediaStreamConstraints = {
+  video: true,
 };
+var pc;
 
-peer.on("open", (id) => {
-  socket.emit("join-room", ROOM_ID, id, user);
-});
 
-const addVideoStream = (video, stream) => {
-  video.srcObject = stream;
-  video.addEventListener("loadedmetadata", () => {
-    video.play();
-    videoGrid.append(video);
-  });
-};
+let turnConfig = {
 
-let text = document.querySelector("#chat_message");
-let send = document.getElementById("send");
-let messages = document.querySelector(".messages");
 
-send.addEventListener("click", (e) => {
-  if (text.value.length !== 0) {
-    socket.emit("message", text.value);
-    text.value = "";
+}
+
+
+const localVideo = document.querySelector('#localVideo');
+const remoteVideo = document.querySelector('#remoteVideo');
+const startButton = document.querySelector('#start');
+const callButton = document.querySelector('#call');
+const hangupButton = document.querySelector('#hangup');
+
+navigator.mediaDevices.getUserMedia(mediaStreamConstraints)
+  .then(gotLocalMediaStream).catch(handleLocalMediaStreamError);
+
+// Local stream that will be reproduced on the video.
+let localStream;
+
+// Handles success by adding the MediaStream to the video element.
+function gotLocalMediaStream(mediaStream) {
+  localStream = mediaStream;
+  localVideo.srcObject = mediaStream;
+  console.log('Received local stream.');
+    callButton.disabled = false;  // Enable call button.
+
+
+}
+
+// Handles error by logging a message to the console with the error message.
+function handleLocalMediaStreamError(error) {
+  console.log('navigator.getUserMedia error: ', error);
+}
+
+// Initializes media stream.
+
+
+
+startButton.addEventListener('click',function(event){
+    console.log('startButton ')
+
+})
+
+callButton.addEventListener('click',function(event){
+    console.log('callButton ')
+createPeerConnection();
+
+})
+
+hangupButton.addEventListener('click',function(event){
+    console.log('hangupButton ')
+
+})
+
+
+//Creating peer connection
+function createPeerConnection() {
+  try {
+    pc = new RTCPeerConnection(turnConfig);
+    pc.onicecandidate = handleIceCandidate;
+    pc.onicecandidateerror = handleIceError;
+    pc.onicegatheringstatechange = handleIceStateChange;
+    pc.onaddstream = handleRemoteStreamAdded;
+    pc.ontrack = handleTrack;
+        pc.onremovestream = handleRemoteStreamRemoved;
+    console.log('Created RTCPeerConnnection');
+    console.log(pc.connectionState);
+    var sd = pc.currentRemoteDescription;
+    if (sd) {
+      alert("Local session: type='" +
+            sd.type + "'; sdp description='" +
+            sd.sdp + "'");
+    }
+    else {
+      alert("No local session yet.");
+    }
+
+  } catch (e) {
+    console.log(e)
+    console.log('Failed to create PeerConnection, exception: ' + e.message);
+    alert('Cannot create RTCPeerConnection object.');
+    return;
   }
-});
+}
 
-text.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && text.value.length !== 0) {
-    socket.emit("message", text.value);
-    text.value = "";
-  }
-});
-
-const inviteButton = document.querySelector("#inviteButton");
-const muteButton = document.querySelector("#muteButton");
-const stopVideo = document.querySelector("#stopVideo");
-muteButton.addEventListener("click", () => {
-  const enabled = myVideoStream.getAudioTracks()[0].enabled;
-  if (enabled) {
-    myVideoStream.getAudioTracks()[0].enabled = false;
-    html = `<i class="fas fa-microphone-slash"></i>`;
-    muteButton.classList.toggle("background__red");
-    muteButton.innerHTML = html;
+function handleIceCandidate(event) {
+  console.log('icecandidate event: ', event);
+  if (event.candidate) {
+    sendMessage({
+      type: 'candidate',
+      label: event.candidate.sdpMLineIndex,
+      id: event.candidate.sdpMid,
+      candidate: event.candidate.candidate
+    }, room);
   } else {
-    myVideoStream.getAudioTracks()[0].enabled = true;
-    html = `<i class="fas fa-microphone"></i>`;
-    muteButton.classList.toggle("background__red");
-    muteButton.innerHTML = html;
+    console.log('End of candidates.');
   }
-});
+}
 
-stopVideo.addEventListener("click", () => {
-  const enabled = myVideoStream.getVideoTracks()[0].enabled;
-  if (enabled) {
-    myVideoStream.getVideoTracks()[0].enabled = false;
-    html = `<i class="fas fa-video-slash"></i>`;
-    stopVideo.classList.toggle("background__red");
-    stopVideo.innerHTML = html;
-  } else {
-    myVideoStream.getVideoTracks()[0].enabled = true;
-    html = `<i class="fas fa-video"></i>`;
-    stopVideo.classList.toggle("background__red");
-    stopVideo.innerHTML = html;
-  }
-});
+function handleIceError(event) {
+  console.log('icecandidate error: ', event);
 
-inviteButton.addEventListener("click", (e) => {
-  prompt(
-    "Copy this link and send it to people you want to meet with",
-    window.location.href
-  );
-});
+}
+function handleIceStateChange(event) {
+    console.log('icecandidate state change: ', event);
+}
 
-socket.on("createMessage", (message, userName) => {
-  messages.innerHTML =
-    messages.innerHTML +
-    `<div class="message">
-        <b><i class="far fa-user-circle"></i> <span> ${
-          userName === user ? "me" : userName
-        }</span> </b>
-        <span>${message}</span>
-    </div>`;
-});
+function handleRemoteStreamAdded(event) {
+  console.log('Remote stream added.');
+  remoteStream = event.stream;
+  remoteVideo.srcObject = remoteStream;
+}
+
+function handleRemoteStreamRemoved(event) {
+  console.log('Remote stream removed. Event: ', event);
+}
+
+function handleTrack(event) {
+  console.log('Remote stream removed. Event: ', event);
+}
