@@ -7,11 +7,7 @@
 var app = require('../app');
 var debug = require('debug')('node-web-rtc:server');
 var http = require('http');
-const io = require("socket.io")(server, {
-  cors: {
-    origin: '*'
-  }
-});
+var shortid = require('shortid');
 
 const { ExpressPeerServer } = require("peer");
 const peerServer = ExpressPeerServer(server, {
@@ -38,6 +34,12 @@ var server = http.createServer(app);
 server.listen(port);
 server.on('error', onError);
 server.on('listening', onListening);
+
+const io = require("socket.io")(server, {
+  cors: {
+    origin: '*'
+  }
+});
 
 /**
  * Normalize a port into a number, string, or false.
@@ -100,13 +102,105 @@ function onListening() {
 }
 
 
+let user_id;
+let other_users=[]
+io.on('connection', function(socket) {
+    console.log("on connection")
 
-io.on("connection", (socket) => {
-  socket.on("join-room", (roomId, userId, userName) => {
-    socket.join(roomId);
-    socket.to(roomId).broadcast.emit("user-connected", userId);
-    socket.on("message", (message) => {
-      io.to(roomId).emit("createMessage", message, userName);
-    });
+
+
+
+
+    io.sockets.emit('user_connected',socket.id)
+
+
+
+  console.log(socket.id)
+
+
+
+
+
+	function log() {
+	  var array = ['Message from server:'];
+	  array.push.apply(array, arguments);
+	  socket.emit('log', array);
+	}
+
+    const peersByCode = {};
+    //Defining Socket Connections
+    socket.on('message', function(message) {
+
+	  const id = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+
+	  // for a real app, would be room-only (not broadcast)
+	  //socket.in(room).emit('message', message, room);
+	  const { code } = JSON.parse(message);
+          if (!peersByCode[code]) {
+            peersByCode[code] = [{ socket, id }];
+          } else if (!peersByCode[code].find(peer => peer.id === id )) {
+            peersByCode[code].push({ socket, id });
+          }
+
+          const peer = peersByCode[code].find(peer => peer.id !== id)
+
+
+
+        //  if (peer) {
+
+            io.sockets.send({message:message,user:socket.id});
+          //}
+	});
+
+	socket.on('create_or_join', function(room) {
+	  console.log('Received request to create or join room ' + room);
+	  console.log(io.sockets.adapter.rooms.get(room))
+        //console.log(io.sockets.adapter.rooms[room])
+	  var clientsInRoom = io.sockets.adapter.rooms.get(room);
+	  if(clientsInRoom){
+	    console.log(io.sockets.adapter.rooms.get(room).size)
+	  }
+	  var numClients = clientsInRoom ? clientsInRoom.size : 0;
+	  console.log('Room ' + room + ' now has ' + numClients + ' client(s)');
+
+	  if (numClients === 0) {
+		socket.join(room);
+		console.log('Client ID ' + socket.id + ' created room ' + room);
+		socket.emit('created', room, socket.id);
+
+	  } else if (numClients === 1) {
+		console.log('Client ID ' + socket.id + ' joined room ' + room);
+		io.sockets.in(room).emit('join', room);
+		socket.join(room);
+		socket.emit('joined', room, socket.id);
+		io.sockets.in(room).emit('ready');
+	  } else { // max two clients
+		socket.emit('full', room);
+	  }
+	});
+
+	socket.on('ipaddr', function() {
+	  var ifaces = os.networkInterfaces();
+	  for (var dev in ifaces) {
+		ifaces[dev].forEach(function(details) {
+		  if (details.family === 'IPv4' && details.address !== '127.0.0.1') {
+			socket.emit('ipaddr', details.address);
+		  }
+		});
+	  }
+	});
+
+	socket.on('peer_offer_create', function(offer) {
+	console.log('peer_offer_create')
+                let offer_detail = JSON.parse(offer)
+    			socket.emit('peer_offer_send', offer_detail);
+
+    	});
+
+	socket.on('disconnect', function(socket){
+	console.log(socket);
+	  console.log('received bye');
+	});
+
+
   });
-});
